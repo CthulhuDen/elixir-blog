@@ -23,7 +23,7 @@ defmodule Tarantool.Space do
   @doc """
   Resolve a space name into ID, using connection from the main pool if needed.
   """
-  @spec resolve(binary()) :: {:ok, integer()} | :none
+  @spec resolve(binary()) :: {:ok, integer()} | :none | :error
   def resolve(name) do
     GenServer.call(@name, {:resolve, name})
   end
@@ -31,7 +31,7 @@ defmodule Tarantool.Space do
   @doc """
   Resolve a space name into ID, using the provided connection if needed.
   """
-  @spec resolve(pid(), binary()) :: {:ok, integer()} | :none
+  @spec resolve(pid(), binary()) :: {:ok, integer()} | :none | :error
   def resolve(t, name) do
     GenServer.call(@name, {:resolve_with, t, name})
   end
@@ -72,6 +72,17 @@ defmodule Tarantool.Space do
     {:noreply, {names, tasks}}
   end
 
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, {names, tasks}) do
+    {name, tasks} = Map.pop(tasks, ref)
+    {state, names} = Map.pop(names, name)
+
+    with {:progress, pids} <- state do
+      Enum.each(pids, &GenServer.reply(&1, :error))
+    end
+
+    {:noreply, {names, tasks}}
+  end
+
   # Private
 
   defp search(name, from, {names, tasks}, fetcher) do
@@ -83,7 +94,7 @@ defmodule Tarantool.Space do
         {:noreply, {%{names | name => [from | pids]}, tasks}}
 
       :error ->
-        %Task{ref: ref} = Task.async(fetcher)
+        %Task{ref: ref} = Task.Supervisor.async_nolink(Tarantool.Space.Supervisor, fetcher)
         names = Map.put(names, name, {:progress, [from]})
         tasks = Map.put(tasks, ref, name)
         {:noreply, {names, tasks}}

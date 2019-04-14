@@ -6,14 +6,22 @@ defmodule Blog.Application do
   use Application
 
   def start(_type, _args) do
-    children = [
-      BlogWeb.Endpoint,
-      Tarantool.Pool,
-      Tarantool.Space
-    ]
-
-    opts = [strategy: :one_for_all, name: Blog.Supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(
+      [
+        BlogWeb.Endpoint,
+        Tarantool.Space,
+        {Blog.Supervisor,
+         {
+           [
+             Tarantool.Pool,
+             {Task.Supervisor, name: Tarantool.Space.Supervisor}
+           ],
+           strategy: :one_for_all
+         }}
+      ],
+      strategy: :one_for_one,
+      name: Blog.Supervisor
+    )
   end
 
   # Tell Phoenix to update the endpoint configuration
