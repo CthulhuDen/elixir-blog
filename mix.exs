@@ -35,10 +35,14 @@ defmodule Blog.MixProject do
       {:phoenix, "~> 1.4.3"},
       {:phoenix_pubsub, "~> 1.1"},
       {:phoenix_html, "~> 2.11"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.2", only: [:dev, :iex]},
       {:gettext, "~> 0.11"},
       {:jason, "~> 1.0"},
-      {:plug_cowboy, "~> 2.0"}
+      {:plug_cowboy, "~> 2.0"},
+      {:poolboy, "~> 1.5.1"},
+      {:tarantool,
+       git: "https://github.com/progress-engine/tarantool.ex",
+       commit: "cdfdaf7238f6b1edfdc9d29325933b4b1931ba25"}
     ]
   end
 end

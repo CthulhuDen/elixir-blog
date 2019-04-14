@@ -6,17 +6,13 @@ defmodule Blog.Application do
   use Application
 
   def start(_type, _args) do
-    # List all child processes to be supervised
     children = [
-      # Start the endpoint when the application starts
-      BlogWeb.Endpoint
-      # Starts a worker by calling: Blog.Worker.start_link(arg)
-      # {Blog.Worker, arg},
+      BlogWeb.Endpoint,
+      Tarantool.Pool,
+      Tarantool.Space
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Blog.Supervisor]
+    opts = [strategy: :one_for_all, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
