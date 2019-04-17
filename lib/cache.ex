@@ -110,7 +110,7 @@ defmodule Cache do
   defp resolve_producer(nil),
     do: {:error, "producer for cache values is required (:producer option)"}
 
-  defp resolve_producer({mod, fun}), do: resolve({mod, fun, []})
+  defp resolve_producer({mod, fun}), do: resolve_producer({mod, fun, []})
   defp resolve_producer({mod, fun, args}), do: {:ok, {:mfa, mod, fun, args}}
   defp resolve_producer(fun) when is_function(fun), do: {:ok, {:fun, fun}}
 
@@ -118,11 +118,6 @@ defmodule Cache do
     do: {:error, "supervisor for tasks is required (:tasks_supervisor option)"}
 
   defp resolve_supervisor(pid) when is_pid(pid) or is_atom(pid), do: {:ok, pid}
-
-  defp resolve(_),
-    do:
-      {:error,
-       "producer for cache values must be function or module/function tuple or module/function/args tuple"}
 
   defp produce({:mfa, mod, fun, args}, key), do: apply(mod, fun, [key | args])
   defp produce({:fun, fun}, key), do: fun.(key)
