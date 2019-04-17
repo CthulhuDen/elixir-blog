@@ -9,12 +9,15 @@ defmodule Blog.Application do
     Supervisor.start_link(
       [
         BlogWeb.Endpoint,
-        Tarantool.Space,
+        {Tarantool.Schema,
+         name: Tarantool.Schema, pool: Tarantool.Pool, supervisor: Tarantool.Schema.Supervisor},
+        # {Tarantool.Simple,
+        # name: Tarantool.Simple, pool: Tarantool.Pool, space_resolver: Tarantool.Space},
         {Blog.Supervisor,
          {
            [
-             Tarantool.Pool,
-             {Task.Supervisor, name: Tarantool.Space.Supervisor}
+             {Tarantool.Pool, name: Tarantool.Pool},
+             {Task.Supervisor, name: Tarantool.Schema.Supervisor}
            ],
            strategy: :one_for_all
          }}
