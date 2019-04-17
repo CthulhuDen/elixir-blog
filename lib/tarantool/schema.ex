@@ -93,14 +93,7 @@ defmodule Tarantool.Schema do
   defp from_cached({:ok, {:ok, id}}), do: {:ok, id}
   defp from_cached({:error, reason}), do: {:error, reason}
 
-  defp from_cached_2({:ok, fst}, fun) do
-    case fun.(fst) do
-      {:ok, :none} -> :none
-      {:ok, {:ok, id}} -> {:ok, id}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
+  defp from_cached_2({:ok, fst}, fun), do: from_cached(fun.(fst))
   defp from_cached_2(fail, _), do: fail
 
   defp force_success(:none, {:space, name}), do: raise("space #{inspect(name)} not found")
