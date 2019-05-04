@@ -84,10 +84,16 @@ defmodule Cache do
     [{^key, state}] = :ets.lookup(cache, key)
 
     with {:progress, pids} <- state do
-      Enum.map(pids, &GenServer.reply(&1, {:ok, res}))
+      Enum.map(pids, &GenServer.reply(&1, res))
     end
 
-    true = :ets.insert(cache, {key, {:value, res}})
+    case res do
+      {:ok, val} ->
+        true = :ets.insert(cache, {key, {:value, val}})
+
+      _ ->
+        :ets.delete(cache, key)
+    end
 
     {:noreply, {producer, supervisor, cache, tasks}}
   end

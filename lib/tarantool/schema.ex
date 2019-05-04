@@ -63,7 +63,7 @@ defmodule Tarantool.Schema do
         {:ok, id}
 
       {:ok, []} ->
-        :none
+        {:error, :none}
     end
   end
 
@@ -80,12 +80,12 @@ defmodule Tarantool.Schema do
         {:ok, {space_id, index_id}}
 
       {:ok, []} ->
-        :none
+        {:error, :none}
     end
   end
 
-  defp from_cached({:ok, :none}), do: :none
-  defp from_cached({:ok, {:ok, id}}), do: {:ok, id}
+  defp from_cached({:ok, id}), do: {:ok, id}
+  defp from_cached({:error, :none}), do: :none
   defp from_cached({:error, reason}), do: {:error, reason}
 
   defp from_cached_2({:ok, fst}, fun), do: from_cached(fun.(fst))
