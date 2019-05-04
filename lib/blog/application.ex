@@ -12,7 +12,8 @@ defmodule Blog.Application do
         {Tarantool.Schema,
          name: Tarantool.Schema, conn: Tarantool.Conn, supervisor: Tarantool.Schema.Supervisor},
         {Tarantool.Conn, name: Tarantool.Conn},
-        {Task.Supervisor, name: Tarantool.Schema.Supervisor}
+        {Task.Supervisor, name: Tarantool.Schema.Supervisor},
+        {Blog.Repo, []}
       ],
       strategy: :one_for_one,
       name: Blog.Supervisor
