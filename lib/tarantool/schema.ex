@@ -15,43 +15,42 @@ defmodule Tarantool.Schema do
   # API
 
   def start_link(opts \\ []) do
-    {pool, opts} = Keyword.pop(opts, :pool)
+    {conn, opts} = Keyword.pop(opts, :conn)
     {supervisor, opts} = Keyword.pop(opts, :supervisor)
 
     opts
-    |> Keyword.put(:producer, {__MODULE__, :fetch, [pool]})
+    |> Keyword.put(:producer, {__MODULE__, :fetch, [conn]})
     |> Keyword.put(:tasks_supervisor, supervisor)
     |> Cache.start_link()
   end
 
   def child_spec(opts), do: %{Cache.child_spec(opts) | start: {__MODULE__, :start_link, [opts]}}
 
-  def resolve_space(resolver, name), do: from_cached(Cache.fetch(resolver, {:space, name}))
-  def resolve_space(resolver, name, t), do: from_cached(Cache.fetch(resolver, {:space, name}, t))
+  def resolve_space(resolver, name) do
+    cached =
+      if is_integer(name),
+        do: {:ok, {:ok, name}},
+        else: Cache.fetch(resolver, {:space, name})
+
+    from_cached(cached)
+  end
 
   def resolve_space!(resolver, name),
     do: force_success(resolve_space(resolver, name), {:space, name})
 
-  def resolve_space!(resolver, name, t),
-    do: force_success(resolve_space(resolver, name, t), {:space, name})
+  def resolve_index(resolver, space, name) do
+    fun =
+      if is_integer(name),
+        do: fn _ -> {:ok, {:ok, name}} end,
+        else: &Cache.fetch(resolver, {:index, &1, name})
 
-  def resolve_index(resolver, space, name),
-    do: from_cached_2(resolve_space(resolver, space), &Cache.fetch(resolver, {:index, &1, name}))
-
-  def resolve_index(resolver, space, name, t) do
-    from_cached_2(
-      resolve_space(resolver, space, t),
-      &Cache.fetch(resolver, {:index, &1, name}, t)
-    )
+    from_cached_2(resolve_space(resolver, space), fun)
   end
 
   def resolve_index!(resolver, space, name),
     do: force_success(resolve_index(resolver, space, name), {:index, space, name})
 
-  def resolve_index!(resolver, space, name, t),
-    do: force_success(resolve_index(resolver, space, name, t), {:index, space, name})
-
-  def fetch({:space, name}, t, _pool) do
+  def fetch({:space, name}, t) do
     case Tarantool.Api.select(t, %{
            space_id: @space_space,
            index_id: @index_space_name,
@@ -68,7 +67,7 @@ defmodule Tarantool.Schema do
     end
   end
 
-  def fetch({:index, space, name}, t, _pool) do
+  def fetch({:index, space, name}, t) do
     case Tarantool.Api.select(t, %{
            space_id: @space_index,
            index_id: @index_index_name,
@@ -83,10 +82,6 @@ defmodule Tarantool.Schema do
       {:ok, []} ->
         :none
     end
-  end
-
-  def fetch(name, pool) do
-    :poolboy.transaction(pool, &fetch(name, &1, pool))
   end
 
   defp from_cached({:ok, :none}), do: :none
