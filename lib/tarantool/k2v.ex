@@ -6,7 +6,9 @@ defmodule Tarantool.K2V do
   @type key :: term()
   @type val :: term()
   @type opts :: list({atom(), term()})
-  @type item :: {val(), opts()}
+  @type ttl :: integer() | nil
+  @type meta :: %{required(:ttl) => ttl(), optional(atom()) => term()}
+  @type item :: {val(), meta()}
   @type row :: %{required(key()) => item()}
 
   @spec get(t(), key()) :: {:ok, row()} | :not_found
@@ -20,7 +22,7 @@ defmodule Tarantool.K2V do
       {:ok, items} ->
         row =
           items
-          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, ttl: ttl}} end)
+          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, %{ttl: ttl}}} end)
           |> Enum.into(%{})
 
         {:ok, row}
@@ -30,7 +32,7 @@ defmodule Tarantool.K2V do
     end
   end
 
-  @spec get_item(t(), key(), key()) :: {:ok, val(), opts()} | :not_found
+  @spec get_item(t(), key(), key()) :: {:ok, val(), meta()} | :not_found
   def get_item(kv, key, item_key) do
     key = Tarantool.KV.normalize_str_key(key)
     item_key = Tarantool.KV.normalize_key(item_key)
@@ -40,7 +42,7 @@ defmodule Tarantool.K2V do
         :not_found
 
       {:ok, [[^key, ^item_key, val, ttl]]} ->
-        {:ok, val, ttl: ttl}
+        {:ok, val, %{ttl: ttl}}
 
       other ->
         other
@@ -88,7 +90,7 @@ defmodule Tarantool.K2V do
       {:ok, items} ->
         row =
           items
-          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, ttl: ttl}} end)
+          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, %{ttl: ttl}}} end)
           |> Enum.into(%{})
 
         {:ok, {:deleted, row}}
@@ -98,7 +100,7 @@ defmodule Tarantool.K2V do
     end
   end
 
-  @spec delete_item(t(), key(), key()) :: {:ok, :not_found} | {:ok, {:deleted, val(), opts()}}
+  @spec delete_item(t(), key(), key()) :: {:ok, :not_found} | {:ok, {:deleted, val(), meta()}}
   def delete_item(kv, key, item_key) do
     key = Tarantool.KV.normalize_str_key(key)
     item_key = Tarantool.KV.normalize_key(item_key)
@@ -108,7 +110,7 @@ defmodule Tarantool.K2V do
         {:ok, :not_found}
 
       {:ok, [[^key, ^item_key, val, ttl]]} ->
-        {:ok, {:deleted, val, ttl: ttl}}
+        {:ok, {:deleted, val, %{ttl: ttl}}}
 
       other ->
         other
@@ -116,7 +118,7 @@ defmodule Tarantool.K2V do
   end
 
   @spec incr_item(t(), key(), key(), opts()) ::
-          {:ok, :added | :exited, number(), opts()} | :not_number
+          {:ok, :added | :exited, number(), meta()} | :not_number
   def incr_item(kv, key, item_key, options \\ []) do
     {default, options} = Keyword.pop(options, :default, 0)
     {delta, options} = Keyword.pop(options, :delta, 1)
@@ -134,8 +136,8 @@ defmodule Tarantool.K2V do
            [key, item_key],
            [delta, default, ttl, update_ttl]
          ) do
-      {:ok, [[nil]]} -> {:ok, :added, default + delta, ttl: ttl}
-      {:ok, [[val, ttl]]} -> {:ok, :existed, val, ttl: ttl}
+      {:ok, [[nil]]} -> {:ok, :added, default + delta, %{ttl: ttl}}
+      {:ok, [[val, ttl]]} -> {:ok, :existed, val, %{ttl: ttl}}
       {:error, 32800, _msg} -> :not_number
       other -> other
     end

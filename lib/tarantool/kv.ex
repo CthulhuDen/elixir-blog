@@ -6,14 +6,16 @@ defmodule Tarantool.KV do
   @type key :: term()
   @type val :: term()
   @type opts :: list({atom(), term()})
+  @type ttl :: integer() | nil
+  @type meta :: %{required(:ttl) => ttl(), optional(atom()) => term()}
 
-  @spec get(t(), key()) :: {:ok, val()} | :not_found
+  @spec get(t(), key()) :: {:ok, val(), meta()} | :not_found
   def get(kv, key) do
     key = normalize_str_key(key)
 
     case Tarantool.Simple.select!(kv.iface, kv.space, :primary, [key]) do
       {:ok, []} -> :not_found
-      {:ok, [[^key, val, ttl]]} -> {:ok, val, ttl: ttl}
+      {:ok, [[^key, val, ttl]]} -> {:ok, val, %{ttl: ttl}}
       other -> other
     end
   end
@@ -43,13 +45,13 @@ defmodule Tarantool.KV do
     end
   end
 
-  @spec delete(t(), key()) :: {:ok, :not_found} | {:ok, {:deleted, val(), opts()}}
+  @spec delete(t(), key()) :: {:ok, :not_found} | {:ok, {:deleted, val(), meta()}}
   def delete(kv, key) do
     key = normalize_str_key(key)
 
     case Tarantool.Simple.delete!(kv.iface, kv.space, :primary, [key]) do
       {:ok, []} -> {:ok, :not_found}
-      {:ok, [[^key, val, ttl]]} -> {:ok, {:deleted, val, ttl: ttl}}
+      {:ok, [[^key, val, ttl]]} -> {:ok, {:deleted, val, %{ttl: ttl}}}
       other -> other
     end
   end
@@ -76,7 +78,7 @@ defmodule Tarantool.KV do
     end
   end
 
-  @spec incr(t(), key(), opts()) :: {:ok, :added | :exited, integer(), opts()} | :not_number
+  @spec incr(t(), key(), opts()) :: {:ok, :added | :exited, integer(), meta()} | :not_number
   def incr(kv, key, options \\ []) do
     {default, options} = Keyword.pop(options, :default, 0)
     {delta, options} = Keyword.pop(options, :delta, 1)
@@ -93,8 +95,8 @@ defmodule Tarantool.KV do
            [key],
            [delta, default, ttl, update_ttl]
          ) do
-      {:ok, [[nil]]} -> {:ok, :added, default + delta, ttl: ttl}
-      {:ok, [[val, ttl]]} -> {:ok, :existed, val, ttl: ttl}
+      {:ok, [[nil]]} -> {:ok, :added, default + delta, %{ttl: ttl}}
+      {:ok, [[val, ttl]]} -> {:ok, :existed, val, %{ttl: ttl}}
       {:error, 32800, _msg} -> :not_number
       other -> other
     end
