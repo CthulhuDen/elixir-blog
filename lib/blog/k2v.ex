@@ -1,4 +1,4 @@
-defmodule BlogWeb.K2V do
+defmodule Blog.K2V do
   @t %Tarantool.Simple{conn: Tarantool.Conn, schema: Tarantool.Schema}
   @kv %Tarantool.KV{iface: @t, space: :k2v}
 
