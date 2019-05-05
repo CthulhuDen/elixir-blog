@@ -3,7 +3,11 @@
   <p>A productive web framework that<br/>does not compromise speed or maintainability.</p>
 </section>
 
-<h1>Counter: <%= @conn.assigns[:counter] %></h1>
+<h2>Counter: <%= @conn.assigns[:counter] %></h1>
+
+<%= unless @conn.assigns[:incremented] do %>
+  <div class="alert alert-danger">Cannot increment counter at this time. Please try again later.</div>
+<% end %>
 
 <section class="row">
   <article class="column">

@@ -5,24 +5,26 @@ defmodule Tarantool.K2V do
   @type t :: %__MODULE__{}
   @type key :: term()
   @type val :: term()
+  @type vals :: %{required(key()) => val()}
   @type opts :: list({atom(), term()})
   @type ttl :: integer() | nil
   @type meta :: %{required(:ttl) => ttl(), optional(atom()) => term()}
   @type item :: {val(), meta()}
   @type row :: %{required(key()) => item()}
 
-  @spec get(t(), key()) :: {:ok, row()} | :not_found
-  def get(kv, key) do
+  @spec get(t(), key(), opts()) :: {:ok, row() | vals()}
+  def get(kv, key, options \\ []) do
+    {include_meta, []} = Keyword.pop(options, :include_meta, false)
     key = Tarantool.KV.normalize_str_key(key)
 
     case Tarantool.Simple.select!(kv.iface, kv.space, :primary, [key], limit: 999) do
-      {:ok, []} ->
-        :not_found
-
       {:ok, items} ->
         row =
           items
-          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, %{ttl: ttl}}} end)
+          |> Enum.map(fn [^key, item_key, val, ttl] ->
+            val = if include_meta, do: {val, %{ttl: ttl}}, else: val
+            {item_key, val}
+          end)
           |> Enum.into(%{})
 
         {:ok, row}
@@ -49,7 +51,7 @@ defmodule Tarantool.K2V do
     end
   end
 
-  @spec set_item(t(), key(), key(), val(), opts()) :: :ok
+  @spec set_item(t(), key(), key(), val(), opts()) :: {:ok, meta()}
   def set_item(kv, key, item_key, val, options \\ []) do
     {ttl, []} = Keyword.pop(options, :ttl)
     ttl = Tarantool.KV.normalize_ttl(ttl)
@@ -58,11 +60,11 @@ defmodule Tarantool.K2V do
 
     with {:ok, [[^key, ^item_key, ^val, ^ttl]]} <-
            Tarantool.Simple.replace!(kv.iface, kv.space, [key, item_key, val, ttl]) do
-      :ok
+      {:ok, %{ttl: ttl}}
     end
   end
 
-  @spec add_item(t(), key(), key, val(), opts()) :: :ok | :exists
+  @spec add_item(t(), key(), key(), val(), opts()) :: {:ok, meta()} | :exists
   def add_item(kv, key, item_key, val, options \\ []) do
     {ttl, []} = Keyword.pop(options, :ttl)
     ttl = Tarantool.KV.normalize_ttl(ttl)
@@ -71,16 +73,17 @@ defmodule Tarantool.K2V do
 
     case Tarantool.Simple.insert!(kv.iface, kv.space, [key, item_key, val, ttl]) do
       {:error, 32771, _msg} -> :exists
-      {:ok, [[^key, ^item_key, ^val, ^ttl]]} -> :ok
+      {:ok, [[^key, ^item_key, ^val, ^ttl]]} -> {:ok, %{ttl: ttl}}
       other -> other
     end
   end
 
-  @spec delete(t(), key()) :: {:ok, :not_found} | {:ok, {:deleted, row()}}
+  @spec delete(t(), key(), opts()) :: {:ok, :not_found} | {:ok, {:deleted, row() | vals()}}
   @doc """
   Not actually working. TODO
   """
-  def delete(kv, key) do
+  def delete(kv, key, options \\ []) do
+    {include_meta, []} = Keyword.pop(options, :include_meta, false)
     key = Tarantool.KV.normalize_str_key(key)
 
     case Tarantool.Simple.delete!(kv.iface, kv.space, :primary, [key]) do
@@ -90,7 +93,10 @@ defmodule Tarantool.K2V do
       {:ok, items} ->
         row =
           items
-          |> Enum.map(fn [^key, item_key, val, ttl] -> {item_key, {val, %{ttl: ttl}}} end)
+          |> Enum.map(fn [^key, item_key, val, ttl] ->
+            val = if include_meta, do: {val, %{ttl: ttl}}, else: val
+            {item_key, val}
+          end)
           |> Enum.into(%{})
 
         {:ok, {:deleted, row}}
@@ -100,7 +106,7 @@ defmodule Tarantool.K2V do
     end
   end
 
-  @spec delete_item(t(), key(), key()) :: {:ok, :not_found} | {:ok, {:deleted, val(), meta()}}
+  @spec delete_item(t(), key(), key()) :: {:ok, :not_found | {:deleted, val(), meta()}}
   def delete_item(kv, key, item_key) do
     key = Tarantool.KV.normalize_str_key(key)
     item_key = Tarantool.KV.normalize_key(item_key)
