@@ -95,20 +95,89 @@ defmodule Tarantool.EctoAdapter do
 
   @behaviour Ecto.Adapter.Queryable
 
-  def execute(_adapter, _query, _cache, _params, _options) do
-    raise "#{__MODULE__}.execute not implemented"
+  def execute(_adapter, _query, {:cache, _fun, q}, params, _options) do
+    # IO.inspect(adapter: _adapter, _query: query, cache: q, params: params, options: _options)
+
+    {ix, key, iter} =
+      case q.filter do
+        {iter, ix, key} -> {ix, Enum.map(key, &replace_param(&1, params)), iter}
+        {} -> {:primary, [], nil}
+      end
+
+    case Tarantool.Simple.select!(@t, q.space, ix, key,
+           iterator: iter,
+           limit: q.limit || 9999,
+           offset: q.offset || 0
+         ) do
+      {:ok, rows} -> {length(rows), rows}
+    end
   end
 
-  def prepare(:all, query) do
-    IO.inspect(query: query)
-    raise "TODO"
-  end
+  def prepare(
+        :all,
+        %{
+          from: %{source: {space, module}},
+          select: %{expr: expr},
+          wheres: wheres,
+          limit: limit,
+          offset: offset
+        } = _query
+      ) do
+    # IO.inspect(query, structs: false)
 
-  def prepare(what, _query) do
-    raise "#{__MODULE__}.prepare not implemented for #{inspect(what)}"
+    if module == nil do
+      raise "Cannot select without model (directly from space)"
+    end
+
+    case expr do
+      {:&, [], [0]} -> {}
+      _ -> raise "Select expr not understood: #{inspect(expr)}"
+    end
+
+    filter =
+      case wheres do
+        [] ->
+          {}
+
+        [%{expr: {op, [], [{{:., [], [{:&, [], [0]}, field]}, [], []}, val]}}] ->
+          {op_to_iter(op), field_to_ix(field, module), [val]}
+
+        _ ->
+          raise "Multi-where expressions not supported"
+      end
+
+    {:cache,
+     %{
+       space: space,
+       module: module,
+       limit: unwrap_expr(limit),
+       offset: unwrap_expr(offset),
+       filter: filter
+     }}
   end
 
   def stream(_adapter, _query, _cache, _params, _options) do
     raise "#{__MODULE__}.stream not implemented"
   end
+
+  defp unwrap_expr(nil), do: nil
+  defp unwrap_expr(%{expr: expr}), do: expr
+  # defp unwrap_expr(expr), do: expr
+
+  defp op_to_iter(:==), do: Tarantool.Simple.iterator_eq()
+  defp op_to_iter(:<=), do: Tarantool.Simple.iterator_le()
+  defp op_to_iter(:<), do: Tarantool.Simple.iterator_lt()
+  defp op_to_iter(:>=), do: Tarantool.Simple.iterator_ge()
+  defp op_to_iter(:>), do: Tarantool.Simple.iterator_gt()
+
+  defp field_to_ix(field, module) do
+    if apply(module, :__schema__, [:primary_key]) == [field] do
+      :primary
+    else
+      field
+    end
+  end
+
+  defp replace_param({:^, [], [ix]}, params), do: Enum.at(params, ix)
+  defp replace_param(val, _params), do: val
 end

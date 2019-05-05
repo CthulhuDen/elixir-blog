@@ -29,7 +29,7 @@ defmodule Tarantool.Schema do
   def resolve_space(resolver, name) do
     cached =
       if is_integer(name),
-        do: {:ok, {:ok, name}},
+        do: {:ok, name},
         else: Cache.fetch(resolver, {:space, name})
 
     from_cached(cached)
@@ -41,7 +41,7 @@ defmodule Tarantool.Schema do
   def resolve_index(resolver, space, name) do
     fun =
       if is_integer(name),
-        do: fn _ -> {:ok, {:ok, name}} end,
+        do: &{:ok, {&1, name}},
         else: &Cache.fetch(resolver, {:index, &1, name})
 
     from_cached_2(resolve_space(resolver, space), fun)

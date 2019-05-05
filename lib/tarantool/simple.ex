@@ -2,6 +2,13 @@ defmodule Tarantool.Simple do
   @enforce_keys [:conn, :schema]
   defstruct [:conn, :schema]
 
+  def iterator_all, do: 2
+  def iterator_eq, do: 0
+  def iterator_ge, do: 5
+  def iterator_gt, do: 6
+  def iterator_le, do: 4
+  def iterator_lt, do: 3
+
   @defaults %{
     limit: 1,
     offset: 0,
@@ -14,6 +21,7 @@ defmodule Tarantool.Simple do
     params =
       params
       |> Keyword.merge(space_id: space_id, index_id: index_id, key: key)
+      |> Keyword.merge(if key == [], do: [iterator: iterator_all()], else: [])
       |> Enum.into(@defaults)
 
     Tarantool.Api.select(t.conn, params)
