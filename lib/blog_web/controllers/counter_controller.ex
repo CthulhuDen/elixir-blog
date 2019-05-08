@@ -18,8 +18,6 @@ defmodule BlogWeb.CounterController do
       end
 
     conn
-    |> assign(:incremented, incremented)
-    |> assign(:counter, counter)
-    |> render("index.html")
+    |> render("index.html", incremented: incremented, counter: counter)
   end
 end

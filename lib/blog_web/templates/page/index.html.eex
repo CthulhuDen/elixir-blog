@@ -3,12 +3,6 @@
   <p>A productive web framework that<br/>does not compromise speed or maintainability.</p>
 </section>
 
-<h2>Counter: <%= @counter %></h1>
-
-<%= unless @incremented do %>
-  <div class="alert alert-danger">Cannot increment counter at this time. Please try again later.</div>
-<% end %>
-
 <section class="row">
   <article class="column">
     <h2>Resources</h2>
